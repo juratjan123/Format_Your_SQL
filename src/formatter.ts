@@ -38,6 +38,7 @@ import { ExpressionStateManager } from './context/expression-state-manager';
 import { ExpressionValidator } from './validators/expression-validator';
 import { IntervalHandler } from './handlers/interval-handler';
 import { PrecedenceFactory } from './factories/precedence-factory';
+import { FormatValidator, ValidationResult } from './validators/format-validator';
 
 export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter {
     private parser: Parser;
@@ -61,6 +62,8 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
     private stateManager: ExpressionStateManager;
     private validator: ExpressionValidator;
     private precedenceFactory: PrecedenceFactory;
+    private formatValidator: FormatValidator;
+    private lastValidationResult: ValidationResult | null = null;
 
     constructor(options: Partial<FormatOptions> = {}) {
         this.options = {
@@ -80,6 +83,7 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         this.stateManager = ExpressionStateManager.getInstance();
         this.validator = ExpressionValidator.getInstance();
         this.precedenceFactory = PrecedenceFactory.getInstance();
+        this.formatValidator = new FormatValidator();
         
         // 默认使用增强版优先级策略
         this.precedenceFactory.useEnhancedStrategy();
@@ -356,25 +360,17 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         return result;
     }
 
-    format(sql: string): string {
+    /**
+     * 格式化SQL查询
+     * @param sql 原始SQL查询
+     * @returns 格式化后的SQL查询
+     */
+    public format(sql: string): string {
         try {
-            // 清理之前可能存在的上下文和状态
-            this.formattingContext.clear();
-            this.indentContextStack.clear();
-            this.stateManager.clear();
+            // 保存原始SQL用于验证
+            const originalSQL = sql;
             
-            // 设置根上下文
-            this.formattingContext.pushContext({
-                type: 'ROOT',
-                level: 0
-            });
-            
-            this.indentContextStack.push({
-                type: 'ROOT',
-                level: 0
-            });
-            
-            // 1. 预处理 SQL
+            // 1. 预处理
             const preprocessedSQL = this.preProcessor.preProcess(sql);
             
             // 2. 解析为 AST
@@ -400,6 +396,9 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
                 console.warn('Warning: Some expressions may be incomplete');
             }
             
+            // 5. 验证格式化结果
+            this.lastValidationResult = this.formatValidator.validate(originalSQL, result);
+            
             // 清理上下文和状态
             this.formattingContext.clear();
             this.indentContextStack.clear();
@@ -412,6 +411,24 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
             this.indentContextStack.clear();
             this.stateManager.clear();
             throw new Error(`格式化错误: ${error.message}`);
+        }
+    }
+
+    /**
+     * 获取最近的验证结果
+     * @returns 验证结果，如果没有则返回null
+     */
+    public getLastValidationResult(): ValidationResult | null {
+        return this.lastValidationResult;
+    }
+
+    /**
+     * 设置格式化验证器的阈值
+     * @param threshold 变化阈值（0-1之间的小数）
+     */
+    public setValidationThreshold(threshold: number): void {
+        if (this.formatValidator) {
+            this.formatValidator.significantChangeThreshold = threshold;
         }
     }
 

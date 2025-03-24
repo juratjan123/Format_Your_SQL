@@ -6,12 +6,13 @@ This document records all significant updates to the Format-Your-SQL extension.
 This file is organized based on recommendations from [Keep a Changelog](http://keepachangelog.com/).
 参考 [Keep a Changelog](http://keepachangelog.com/) 的建议来组织此文件。
 
-## [0.0.16] - 2024-03-24
+## [0.1.0] - 2024-03-24
 ### Bug Fixes / 修复
 - 修复操作符优先级逻辑，优化格式化逻辑 / Fixed operator precedence logic and optimized formatting logic
 ### Improvements / 改进
 - 添加对Hive Map的语句的支持，通过预处理和后处理机制实现对 map_column['key']、array_column[0] 等Hive特有语法的格式化支持 / Added support for Hive-specific syntax (map_column['key'], array_column[0], etc.) via pre/post processing mechanism
-
+- 增加代码丢失报警机制,当格式化后代码长度变化超过阈值时会提示用户 / Added code loss warning mechanism that alerts users when formatted code length changes exceed threshold
+- 优化错误提示,添加更多常见SQL错误的中文友好提示 / Enhanced error messages with more user-friendly Chinese prompts for common SQL errors
 
 ## [0.0.15] - 2024-03-24
 ### Improvements / 改进

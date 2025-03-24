@@ -81,13 +81,13 @@ WHERE
 - **Comment Processing / 注释处理支持**
   - [ ] comment formatting support / 注释的格式化支持
 
-- **Code Security / 代码安全保障**
-  - [ ] Code loss warning mechanism / 代码丢失预警机制
-
 - **Feature Enhancement / 功能增强**
   - [ ] Various formatting styles / 多样化的预设格式化样式
   - [ ] Custom formatting rules / 自定义格式化规则
-  - [ ] Better error prompts / 完善的错误提示
+  - [x] Better error prompts / 完善的错误提示
+
+- **Code Security / 代码安全保障**
+  - [x] Code loss warning mechanism / 代码丢失预警机制
 
 - **Performance Optimization / 性能优化**
   - [x] ~~Reduce memory usage & package size / 减少内存占用 & 减少包体大小~~
