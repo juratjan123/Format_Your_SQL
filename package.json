@@ -1,0 +1,76 @@
+{
+  "name": "format-your-sql",
+  "displayName": "Format-Your-SQL", 
+  "description": "A lightweight SQL formatter extension",
+  "version": "0.0.15",
+  "publisher": "JulyTea",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:sql",
+    "workspaceContains:**/*.sql"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "sql",
+        "extensions": [
+          ".sql"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "format-your-sql.format",
+        "title": "Format Your SQL🧹",
+        "category": "SQL"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorHasSelection && resourceLangId == sql",
+          "command": "format-your-sql.format",
+          "group": "1_modification@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "webpack --mode production && rimraf dist/*.map",
+    "webpack": "webpack --mode development",
+    "webpack-dev": "webpack --mode development --watch",
+    "compile": "webpack",
+    "watch": "webpack --watch --info-verbosity verbose",
+    "test": "ts-node",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "18.x",
+    "@types/vscode": "^1.60.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "circular-dependency-plugin": "^5.2.2",
+    "eslint": "^8.56.0",
+    "terser-webpack-plugin": "^5.3.11",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "node-sql-parser": "^5.3.5"
+  },
+  "license": "GPL-3.0",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juratjan123/Format_Your_SQL.git"
+  }
+}
