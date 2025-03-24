@@ -390,7 +390,10 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
                 walker.walk(ast);
             }
             
-            const result = visitor.getResult();
+            let result = visitor.getResult();
+            
+            // 4. 后处理 - 恢复原始的map访问语法
+            result = this.preProcessor.postProcess(result);
             
             // 检查是否有未完成的状态
             if (this.stateManager.hasIncompleteStates()) {
