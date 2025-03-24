@@ -1,11 +1,16 @@
 # SQL Formatter / SQL 格式化工具
 
-
 一个简易的 HiveSQL 格式化工具，支持简易 HiveSQL 语句的格式化，提供清晰、一致的代码风格。
 A lightweight HiveSQL formatting tool that supports basic HiveSQL statement formatting, providing clear and consistent code style.
 
 > **注意：个人风格，仅供参考，暂不支持格式化样式自定义选择。**
 > Note: Personal style preferences, for reference only. Currently does not support custom formatting options.
+
+## 🔍 关于项目 / About the Project
+
+本格式化工具基于 Node.js 构建，基于 SQL-Parser 进行 SQL 语义解析，通过抽象语法树实现代码格式化。该工具作为 VS Code 扩展提供。
+
+This formatting tool is built on Node.js and uses SQL-Parser for SQL syntax parsing, implementing code formatting through abstract syntax tree (AST). The tool is provided as a VS Code extension.
 
 ## ⚠️ Important Notes / 使用前的注意事项
 
@@ -97,6 +102,20 @@ WHERE
 - **Documentation / Readme文档完善**
   - [x] ~~完善Readme文档~~
   - [x] ~~添加英文支持~~
+
+## 🙏 致谢 / Acknowledgements
+
+本项目的开发得益于以下开源项目的支持：
+
+This project was made possible with the support of the following open-source projects:
+
+- **[node-sql-parser](https://www.npmjs.com/package/node-sql-parser)** - 强大的SQL解析器，为本项目提供了核心的SQL语法分析能力，使格式化工作成为可能。特别感谢！/A powerful SQL parser that provides the core SQL syntax analysis capability for this project, making the formatting work possible. Special thanks to the outstanding work!
+
+## 💡 贡献 / Contributing
+
+欢迎对本项目提出改进建议或直接贡献代码！请通过Issue或Pull Request参与项目。
+
+Suggestions for improvement or direct code contributions are welcome! Please participate through Issues or Pull Requests.
 
 ## 📄 License / 开源协议
 
