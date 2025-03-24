@@ -109,7 +109,7 @@ WHERE
 
 This project was made possible with the support of the following open-source projects:
 
-- **[node-sql-parser](https://www.npmjs.com/package/node-sql-parser)** - 强大的SQL解析器，为本项目提供了核心的SQL语法分析能力，使格式化工作成为可能。特别感谢！/A powerful SQL parser that provides the core SQL syntax analysis capability for this project, making the formatting work possible. Special thanks to the outstanding work!
+- **[node-sql-parser](https://www.npmjs.com/package/node-sql-parser)** - 强大的SQL解析器，为本项目提供了核心的SQL语法分析能力，使格式化工作成为可能，表示非常感谢！/A powerful SQL parser that provides the core SQL syntax analysis capability for this project, making the formatting work possible. Special thanks to the outstanding work!
 
 ## 💡 贡献 / Contributing
 
