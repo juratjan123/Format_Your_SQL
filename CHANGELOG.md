@@ -6,6 +6,10 @@ This document records all significant updates to the Format-Your-SQL extension.
 This file is organized based on recommendations from [Keep a Changelog](http://keepachangelog.com/).
 参考 [Keep a Changelog](http://keepachangelog.com/) 的建议来组织此文件。
 
+## [0.1.2] - 2024-03-24
+### Improvements / 改进
+- 修改无法打开“查看差异”界面的Bug / Modify the bug that prevents opening the 'View Diff' interface.
+
 ## [0.1.1] - 2024-03-24
 ### Improvements / 改进
 - 修改 Readme 文档 / Update Readme File

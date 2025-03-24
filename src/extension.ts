@@ -208,7 +208,7 @@ export function activate(context: vscode.ExtensionContext) {
 			{ title: '查看差异', isCloseAffordance: false },
 			{ title: '忽略', isCloseAffordance: true }
 		).then(selection => {
-			if (selection && selection.title === '👁️ 查看差异') {
+			if (selection && selection.title === '查看差异') {
 				// 生成差异标题，包含时间戳
 				const timestamp = new Date().toLocaleTimeString();
 				const title = `SQL格式化差异对比 (${warningType === '丢失' ? '可能删除了内容' : '可能添加了内容'} - ${timestamp})`;
