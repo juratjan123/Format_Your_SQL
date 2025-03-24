@@ -37,6 +37,7 @@ import { UnionSubqueryHandler } from './handlers/union-subquery-handler';
 import { ExpressionStateManager } from './context/expression-state-manager';
 import { ExpressionValidator } from './validators/expression-validator';
 import { IntervalHandler } from './handlers/interval-handler';
+import { PrecedenceFactory } from './factories/precedence-factory';
 
 export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter {
     private parser: Parser;
@@ -59,6 +60,7 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
     private handlerFactory: HandlerFactory;
     private stateManager: ExpressionStateManager;
     private validator: ExpressionValidator;
+    private precedenceFactory: PrecedenceFactory;
 
     constructor(options: Partial<FormatOptions> = {}) {
         this.options = {
@@ -77,6 +79,10 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         this.handlerFactory = HandlerFactory.getInstance();
         this.stateManager = ExpressionStateManager.getInstance();
         this.validator = ExpressionValidator.getInstance();
+        this.precedenceFactory = PrecedenceFactory.getInstance();
+        
+        // 默认使用增强版优先级策略
+        this.precedenceFactory.useEnhancedStrategy();
         
         // 初始化处理器
         this.expressionHandlers = [

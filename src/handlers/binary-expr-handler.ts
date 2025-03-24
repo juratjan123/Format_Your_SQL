@@ -4,9 +4,11 @@ import { OperatorHandler, LogicalOperatorHandler, ComparisonOperatorHandler, Def
 import { ExpressionHandler } from './expression-handler';
 import { BaseHandler } from './base-handler';
 import { OperatorPrecedence } from '../utils/operator-precedence';
+import { PrecedenceFactory } from '../factories/precedence-factory';
 
 export class BinaryExprHandler extends BaseHandler {
     private operatorHandlers: OperatorHandler[];
+    private precedenceFactory: PrecedenceFactory;
     
     constructor() {
         super();
@@ -15,6 +17,7 @@ export class BinaryExprHandler extends BaseHandler {
             new ComparisonOperatorHandler(),
             new DefaultOperatorHandler()
         ];
+        this.precedenceFactory = PrecedenceFactory.getInstance();
     }
     
     canHandle(expr: any): boolean {
@@ -25,10 +28,10 @@ export class BinaryExprHandler extends BaseHandler {
         try {
             const operator = expr.operator.toUpperCase();
             
-            // 检查是否需要括号
+            // 使用优先级工厂判断是否需要括号
             const needsParentheses = expr.parentheses || 
                 (context.parentOperator && 
-                 OperatorPrecedence.needsParentheses(context.parentOperator, operator));
+                 this.precedenceFactory.shouldAddParentheses(context.parentOperator, operator));
 
             // 创建子表达式的上下文
             const childContext: ExpressionContext = {

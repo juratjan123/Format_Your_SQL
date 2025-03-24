@@ -17,9 +17,9 @@ try {
     console.log(sql);
     
     // 解析AST并打印
-    const ast = parser.astify(sql);
-    console.log('\nAST结构:\n');
-    console.log(JSON.stringify(ast, null, 2));
+    // const ast = parser.astify(sql);
+    // console.log('\nAST结构:\n');
+    // console.log(JSON.stringify(ast, null, 2));
     
     // 格式化SQL
     console.log('\n格式化后的SQL:\n');
