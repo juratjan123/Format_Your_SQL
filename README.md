@@ -10,7 +10,7 @@ A lightweight HiveSQL formatting tool that supports basic HiveSQL statement form
 ## ⚠️ Important Notes / 使用前的注意事项
 
 - 当前版本为测试版，部分格式化功能仍在完善中
-- 建议在格式化前保存代码，以便需要时可以撤销（Ctrl + Z）; QaQ
+- 建议在格式化前及时保存代码，以便需要时可以撤销（Ctrl + Z）; QaQ
 - 暂不支持格式化样式自定义
 - 暂不支持注释
 
@@ -23,6 +23,7 @@ A lightweight HiveSQL formatting tool that supports basic HiveSQL statement form
 ## ✨ Features / 主要特性
 - 智能格式化：自动缩进、换行和对齐
 - 关键字标准化：自动将 SQL 关键字转换为大写
+- 代码安全：格式化前后代码长度变化超过阈值时进行提示
 - 基本支持：
   - 子查询 & CTE
   - 各类运算符（AND、OR、IN、BETWEEN 等）
@@ -33,6 +34,7 @@ A lightweight HiveSQL formatting tool that supports basic HiveSQL statement form
 
 - Smart Formatting: Automatic indentation, line breaks and alignment
 - Keyword Standardization: Automatically converts SQL keywords to uppercase
+- Code Safety: Warning prompts when formatted code length changes exceed threshold
 - Basic Support:
   - Subqueries & CTE
   - Various operators (AND, OR, IN, BETWEEN, etc.)
