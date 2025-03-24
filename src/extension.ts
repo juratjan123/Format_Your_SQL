@@ -205,8 +205,8 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showWarningMessage(
 			`${message}: ${details}`, 
 			{ modal: false },
-			{ title: '👁️ 查看差异', isCloseAffordance: false },
-			{ title: '✓ 忽略', isCloseAffordance: true }
+			{ title: '查看差异', isCloseAffordance: false },
+			{ title: '忽略', isCloseAffordance: true }
 		).then(selection => {
 			if (selection && selection.title === '👁️ 查看差异') {
 				// 生成差异标题，包含时间戳
