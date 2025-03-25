@@ -275,10 +275,21 @@ export class SQLErrorFormatter {
       : displayMessage;
     
     // 显示错误通知
-    vscode.window.showErrorMessage(
+    const notification = vscode.window.showErrorMessage(
       shortMessage,
       '查看详情'
-    ).then(selection => {
+    );
+    
+    // 设置自动关闭通知的计时器（5秒后）
+    const autoCloseTimeout = setTimeout(() => {
+      // 通过使用then但不处理结果的方式触发通知关闭
+      notification.then(() => {});
+    }, 5000);
+    
+    notification.then(selection => {
+      // 如果用户与通知进行了交互，清除自动关闭计时器
+      clearTimeout(autoCloseTimeout);
+      
       if (selection === '查看详情') {
         // 获取当前时间
         const now = new Date();

@@ -21,6 +21,14 @@ export class FormatValidator {
   private static SIGNIFICANT_LENGTH_CHANGE_THRESHOLD = 0.1; // 10%变化阈值
   // 可接受的最小变化阈值，低于这个阈值将被视为无变化
   private static ACCEPTABLE_CHANGE_THRESHOLD = 0.01; // 1%变化阈值
+  
+  // 不应触发报警的关键词列表
+  private static readonly IGNORED_KEYWORDS = [
+    'AS', 'INNER', 'OUTER', 'LEFT', 'RIGHT', 'FULL', 'JOIN', 'ON'
+  ];
+  
+  // 比较时是否忽略大小写
+  private static readonly CASE_INSENSITIVE_TYPES = ['keyword', 'identifier'];
 
   /**
    * 验证格式化前后的SQL代码
@@ -175,44 +183,170 @@ export class FormatValidator {
     // 创建标记值的频率统计
     const originalFrequency = new Map<string, number>();
     const formattedFrequency = new Map<string, number>();
-
-    // 统计原始标记频率
+    
+    // 用于大小写不敏感比较的映射
+    const lowerCaseMap = new Map<string, string>();
+    
+    // 判断是否需要忽略大小写
+    const isCaseInsensitiveType = FormatValidator.CASE_INSENSITIVE_TYPES.includes(type);
+    
+    // 统计原始标记频率，对标识符和关键词执行大小写不敏感的处理
     originalTypeTokens.forEach(token => {
-      const current = originalFrequency.get(token.value) || 0;
-      originalFrequency.set(token.value, current + 1);
+      const value = token.value;
+      const normalizedValue = isCaseInsensitiveType ? value.toUpperCase() : value;
+      
+      if (isCaseInsensitiveType) {
+        lowerCaseMap.set(normalizedValue, value); // 记录原始大小写
+      }
+      
+      const current = originalFrequency.get(normalizedValue) || 0;
+      originalFrequency.set(normalizedValue, current + 1);
     });
 
-    // 统计格式化后标记频率
+    // 统计格式化后标记频率，同样对标识符和关键词执行大小写不敏感的处理
     formattedTypeTokens.forEach(token => {
-      const current = formattedFrequency.get(token.value) || 0;
-      formattedFrequency.set(token.value, current + 1);
+      const value = token.value;
+      const normalizedValue = isCaseInsensitiveType ? value.toUpperCase() : value;
+      
+      if (isCaseInsensitiveType) {
+        lowerCaseMap.set(normalizedValue, value); // 更新为最新的大小写形式
+      }
+      
+      const current = formattedFrequency.get(normalizedValue) || 0;
+      formattedFrequency.set(normalizedValue, current + 1);
     });
 
     // 查找添加和删除的标记
-    const addedTokens: Array<{type: string; value: string; change: 'added' | 'removed'}> = [];
-    const removedTokens: Array<{type: string; value: string; change: 'added' | 'removed'}> = [];
+    const addedTokens: Array<{type: string; value: string; change: 'added' | 'removed'; normalizedValue?: string}> = [];
+    const removedTokens: Array<{type: string; value: string; change: 'added' | 'removed'; normalizedValue?: string}> = [];
 
     // 查找添加或频率增加的标记
-    formattedFrequency.forEach((count, value) => {
-      const originalCount = originalFrequency.get(value) || 0;
+    formattedFrequency.forEach((count, normalizedValue) => {
+      const originalCount = originalFrequency.get(normalizedValue) || 0;
       if (count > originalCount) {
+        // 跳过忽略的关键词
+        if (type === 'keyword' && FormatValidator.IGNORED_KEYWORDS.includes(normalizedValue)) {
+          return;
+        }
+        
         const diff = count - originalCount;
         for (let i = 0; i < diff; i++) {
-          addedTokens.push({type, value, change: 'added'});
+          const actualValue = isCaseInsensitiveType ? lowerCaseMap.get(normalizedValue) || normalizedValue : normalizedValue;
+          addedTokens.push({
+            type, 
+            value: actualValue, 
+            change: 'added',
+            normalizedValue: isCaseInsensitiveType ? normalizedValue : undefined
+          });
         }
       }
     });
 
     // 查找删除或频率减少的标记
-    originalFrequency.forEach((count, value) => {
-      const formattedCount = formattedFrequency.get(value) || 0;
+    originalFrequency.forEach((count, normalizedValue) => {
+      const formattedCount = formattedFrequency.get(normalizedValue) || 0;
       if (count > formattedCount) {
+        // 跳过忽略的关键词
+        if (type === 'keyword' && FormatValidator.IGNORED_KEYWORDS.includes(normalizedValue)) {
+          return;
+        }
+        
         const diff = count - formattedCount;
         for (let i = 0; i < diff; i++) {
-          removedTokens.push({type, value, change: 'removed'});
+          const actualValue = isCaseInsensitiveType ? lowerCaseMap.get(normalizedValue) || normalizedValue : normalizedValue;
+          removedTokens.push({
+            type, 
+            value: actualValue, 
+            change: 'removed',
+            normalizedValue: isCaseInsensitiveType ? normalizedValue : undefined
+          });
         }
       }
     });
+    
+    // 过滤掉仅大小写不同的项目
+    if (isCaseInsensitiveType) {
+      const addedNormalized = new Map<string, number>();
+      const removedNormalized = new Map<string, number>();
+      
+      // 计算添加项的统计
+      addedTokens.forEach(token => {
+        if (token.normalizedValue) {
+          const count = addedNormalized.get(token.normalizedValue) || 0;
+          addedNormalized.set(token.normalizedValue, count + 1);
+        }
+      });
+      
+      // 计算删除项的统计
+      removedTokens.forEach(token => {
+        if (token.normalizedValue) {
+          const count = removedNormalized.get(token.normalizedValue) || 0;
+          removedNormalized.set(token.normalizedValue, count + 1);
+        }
+      });
+      
+      // 筛选出仅大小写不同的项目并移除它们
+      const filteredAddedTokens: Array<{type: string; value: string; change: 'added' | 'removed'}> = [];
+      const filteredRemovedTokens: Array<{type: string; value: string; change: 'added' | 'removed'}> = [];
+      
+      // 处理添加的标记
+      addedTokens.forEach(token => {
+        if (token.normalizedValue) {
+          const addedCount = addedNormalized.get(token.normalizedValue) || 0;
+          const removedCount = removedNormalized.get(token.normalizedValue) || 0;
+          
+          // 如果添加和删除的数量相同，说明只是大小写变化，忽略这些标记
+          if (addedCount > removedCount) {
+            const diff = addedCount - removedCount;
+            if (addedNormalized.get(token.normalizedValue) !== 0) { // 防止重复添加
+              filteredAddedTokens.push({
+                type: token.type,
+                value: token.value,
+                change: 'added'
+              });
+              // 减少计数，避免重复添加
+              addedNormalized.set(token.normalizedValue, addedNormalized.get(token.normalizedValue)! - 1);
+            }
+          }
+        } else {
+          filteredAddedTokens.push(token);
+        }
+      });
+      
+      // 处理删除的标记
+      removedTokens.forEach(token => {
+        if (token.normalizedValue) {
+          const addedCount = addedNormalized.get(token.normalizedValue) || 0;
+          const removedCount = removedNormalized.get(token.normalizedValue) || 0;
+          
+          // 如果添加和删除的数量相同，说明只是大小写变化，忽略这些标记
+          if (removedCount > addedCount) {
+            const diff = removedCount - addedCount;
+            if (removedNormalized.get(token.normalizedValue) !== 0) { // 防止重复添加
+              filteredRemovedTokens.push({
+                type: token.type,
+                value: token.value,
+                change: 'removed'
+              });
+              // 减少计数，避免重复添加
+              removedNormalized.set(token.normalizedValue, removedNormalized.get(token.normalizedValue)! - 1);
+            }
+          }
+        } else {
+          filteredRemovedTokens.push(token);
+        }
+      });
+      
+      // 使用过滤后的标记替换原标记列表
+      if (filteredAddedTokens.length !== addedTokens.length || filteredRemovedTokens.length !== removedTokens.length) {
+        // 如果过滤掉了一些标记，更新列表
+        addedTokens.length = 0;
+        removedTokens.length = 0;
+        
+        addedTokens.push(...filteredAddedTokens);
+        removedTokens.push(...filteredRemovedTokens);
+      }
+    }
 
     // 计算是否有差异
     const hasDifference = addedTokens.length > 0 || removedTokens.length > 0;

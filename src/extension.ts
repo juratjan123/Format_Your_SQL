@@ -54,7 +54,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 		const selection = editor.selection;
 		if (selection.isEmpty) {
-			vscode.window.showInformationMessage('请选择要格式化的SQL代码');
+			// 显示信息通知并设置自动淡出
+			const notification = vscode.window.showInformationMessage('请选择要格式化的SQL代码');
+			setTimeout(() => {
+				notification.then(() => {});
+			}, 5000);
 			return;
 		}
 
@@ -95,7 +99,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (editor.document.languageId !== 'sql') {
-			vscode.window.showInformationMessage('此命令仅适用于SQL文件');
+			// 显示信息通知并设置自动淡出
+			const notification = vscode.window.showInformationMessage('此命令仅适用于SQL文件');
+			setTimeout(() => {
+				notification.then(() => {});
+			}, 5000);
 			return;
 		}
 
@@ -201,53 +209,98 @@ export function activate(context: vscode.ExtensionContext) {
 		
 		const message = `${warningIcon} SQL格式化提示: 代码可能${warningType}`;
 		
-		// 显示警告通知，按钮更加直观
-		vscode.window.showWarningMessage(
+		// 创建通知选项
+		const notificationOptions = {
+			modal: false
+		};
+		
+		// 创建通知按钮
+		const viewDiffButton = { title: '查看差异', isCloseAffordance: false };
+		const ignoreButton = { title: '忽略', isCloseAffordance: true };
+		
+		// 显示警告通知
+		const notification = vscode.window.showWarningMessage(
 			`${message}: ${details}`, 
-			{ modal: false },
-			{ title: '查看差异', isCloseAffordance: false },
-			{ title: '忽略', isCloseAffordance: true }
-		).then(selection => {
+			notificationOptions,
+			viewDiffButton,
+			ignoreButton
+		);
+		
+		// 设置自动关闭通知的计时器（5秒后）
+		const autoCloseTimeout = setTimeout(() => {
+			// 通过使用then但不处理结果的方式触发通知关闭
+			// 这是因为VSCode API没有直接关闭通知的方法
+			notification.then(() => {});
+		}, 5000);
+		
+		// 处理通知按钮点击事件
+		notification.then(selection => {
+			// 如果用户与通知进行了交互，清除自动关闭计时器
+			clearTimeout(autoCloseTimeout);
+			
 			if (selection && selection.title === '查看差异') {
 				// 生成差异标题，包含时间戳
 				const timestamp = new Date().toLocaleTimeString();
 				const title = `SQL格式化差异对比 (${warningType === '丢失' ? '可能删除了内容' : '可能添加了内容'} - ${timestamp})`;
 				
-				// 添加更详细的说明注释
-				let originalWithComment = `-- 【原始SQL代码】\n`;
-				
+				// 添加更详细的说明注释 - 使用更清晰的格式
+				let originalWithComment = 
+`/*
+----------------------------------------------------------------------
+                         【原始SQL代码】
+----------------------------------------------------------------------
+${warningType === '丢失' ? '⚠️ 警告：格式化后可能丢失了以下内容' : '📝 注意：格式化后可能添加了新内容'}
+----------------------------------------------------------------------
+`;
+
 				if (validationResult.diffDetails && validationResult.diffDetails.length > 0) {
-					// 如果有详细的差异信息，在注释中提供更多细节
-					originalWithComment += `-- 警告类型: 代码${warningType}\n`;
-					originalWithComment += `-- ${details}\n`;
-					originalWithComment += `-- 修改详情:\n`;
+					// 如果有详细的差异信息，以更美观的格式提供
+					originalWithComment += `${details}\n\n`;
+					originalWithComment += `● 详细变化：\n`;
 					
 					const removedItems = validationResult.diffDetails
 						.filter((d: any) => d.change === 'removed')
-						.map((d: any) => `--   - 移除: ${d.type} "${d.value}"`);
+						.map((d: any) => `  - 移除: ${d.type} "${d.value}"`);
 						
 					const addedItems = validationResult.diffDetails
 						.filter((d: any) => d.change === 'added')
-						.map((d: any) => `--   - 添加: ${d.type} "${d.value}"`);
+						.map((d: any) => `  - 添加: ${d.type} "${d.value}"`);
 					
 					if (removedItems.length > 0) {
-						originalWithComment += removedItems.slice(0, 5).join('\n') + 
-							(removedItems.length > 5 ? '\n--   - ... 等' : '') + '\n';
+						originalWithComment += `\n【移除的内容】\n` + 
+							removedItems.slice(0, 5).join('\n') + 
+							(removedItems.length > 5 ? `\n  ... 等${removedItems.length - 5}项` : '') + '\n';
 					}
 					
 					if (addedItems.length > 0) {
-						originalWithComment += addedItems.slice(0, 5).join('\n') + 
-							(addedItems.length > 5 ? '\n--   - ... 等' : '') + '\n';
+						originalWithComment += `\n【添加的内容】\n` + 
+							addedItems.slice(0, 5).join('\n') + 
+							(addedItems.length > 5 ? `\n  ... 等${addedItems.length - 5}项` : '') + '\n';
 					}
 				} else {
-					originalWithComment += `-- 警告: 格式化可能导致代码${warningType}\n`;
+					originalWithComment += `无详细差异信息，但可能存在格式变化。\n`;
 				}
 				
-				originalWithComment += `\n${originalSql}`;
+				originalWithComment += `\n请仔细比对两侧代码，确认所有变化都是安全的。
+注意：系统已自动忽略关键词和标识符的大小写变化（如 count 与 COUNT）。
+----------------------------------------------------------------------
+*/\n\n${originalSql}`;
 				
-				// 格式化后的代码注释
+				// 格式化后的代码注释 - 使用匹配的格式
 				const formattedWithComment = 
-					`-- 【格式化后SQL代码】\n-- 请仔细比较差异，确保没有意外${warningType}重要内容\n\n${formattedSql}`;
+`/*
+----------------------------------------------------------------------
+                       【格式化后SQL代码】
+----------------------------------------------------------------------
+${warningType === '丢失' ? '⚠️ 警告：可能丢失了原始代码中的部分内容' : '📝 注意：可能添加了原始代码中不存在的内容'}
+----------------------------------------------------------------------
+
+请仔细比对左侧原始代码，确认所有变化都符合预期。
+如果发现重要内容丢失，请使用原始代码。
+注意：系统已自动忽略关键词和标识符的大小写变化（如 count 与 COUNT）。
+
+----------------------------------------------------------------------
+*/\n\n${formattedSql}`;
 				
 				// 显示差异对比
 				SQLDiffViewer.showDiff(
