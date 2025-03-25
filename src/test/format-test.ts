@@ -1,14 +1,12 @@
-import { SQLFormatter } from '../formatter';
+import { Parser } from 'node-sql-parser';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Parser } from 'node-sql-parser';
 
-const formatter = new SQLFormatter();
 // @ts-ignore
 const parser = new Parser({ database: 'hive' });
 
 // 读取测试SQL文件
-const sqlFile = path.join(__dirname, 'test.sql');
+const sqlFile = path.join(__dirname, 'cast-test.sql');
 const sql = fs.readFileSync(sqlFile, 'utf8');
 
 // 解析并格式化SQL
@@ -21,10 +19,8 @@ try {
     console.log('\nAST结构:\n');
     console.log(JSON.stringify(ast, null, 2));
     
-    // 格式化SQL
-    console.log('\n格式化后的SQL:\n');
-    const formatted = formatter.format(sql);
-    console.log(formatted);
+    // 不使用formatter，仅查看AST
+    console.log('\n仅作解析测试，暂不格式化\n');
 } catch (error) {
-    console.error('格式化错误:', error);
+    console.error('解析错误:', error);
 }

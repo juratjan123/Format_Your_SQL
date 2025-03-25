@@ -4,6 +4,7 @@ export interface ExpressionTypeChecker {
     isFunction(expr: any): boolean;
     isCaseWhen(expr: any): boolean;
     isInterval(expr: any): boolean;
+    isCast(expr: any): boolean;
 }
 
 export class SQLExpressionTypeChecker implements ExpressionTypeChecker {
@@ -30,5 +31,9 @@ export class SQLExpressionTypeChecker implements ExpressionTypeChecker {
     
     isInterval(expr: any): boolean {
         return expr?.type === 'interval';
+    }
+    
+    isCast(expr: any): boolean {
+        return expr?.type === 'cast';
     }
 }

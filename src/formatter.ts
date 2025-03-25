@@ -40,6 +40,7 @@ import { IntervalHandler } from './handlers/interval-handler';
 import { PrecedenceFactory } from './factories/precedence-factory';
 import { FormatValidator, ValidationResult } from './validators/format-validator';
 import { WindowFunctionHandler } from './handlers/window-function-handler';
+import { CastHandler } from './handlers/cast-handler';
 import { Logger } from './utils/logger';
 
 // 格式化超时时间（毫秒）
@@ -108,7 +109,8 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
             new FunctionHandler(),
             new SubqueryHandler(),
             new UnionSubqueryHandler(),
-            new IntervalHandler()
+            new IntervalHandler(),
+            new CastHandler()
         ];
         
         this.joinHandler = new JoinHandler(this);
@@ -185,6 +187,17 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
                     
                     // 移除重复的窗口函数处理，因为已经由WindowFunctionHandler处理
                     return `${funcName}(${args})`;
+                case 'cast':
+                    // 处理 CAST 函数，这是一个回退方案，正常应该由 CastHandler 处理
+                    if (decoratedExpr.expr && decoratedExpr.target && decoratedExpr.target.length) {
+                        const sourceExpr = this.formatExpression(decoratedExpr.expr, {
+                            ...context,
+                            isInFunction: true
+                        });
+                        const targetType = decoratedExpr.target[0].dataType;
+                        return `CAST(${sourceExpr} AS ${targetType})`;
+                    }
+                    return decoratedExpr.value || '';
                 case 'column_ref':
                     return decoratedExpr.table ? 
                         `${decoratedExpr.table}.${decoratedExpr.column}` : 
