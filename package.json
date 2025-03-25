@@ -2,7 +2,7 @@
   "name": "format-your-sql",
   "displayName": "Format-Your-SQL",
   "description": "A lightweight SQL formatter extension",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "JulyTea",
   "engines": {
     "vscode": "^1.75.0"
@@ -28,6 +28,11 @@
       {
         "command": "format-your-sql.format",
         "title": "Format Your SQL🧹",
+        "category": "SQL"
+      },
+      {
+        "command": "format-your-sql.showLogs",
+        "title": "Show Format Your SQL Debug Logs",
         "category": "SQL"
       }
     ],
@@ -74,6 +79,11 @@
           "type": "number",
           "default": 5000,
           "description": "错误高亮显示持续时间（毫秒）"
+        },
+        "formatYourSQL.debug.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用详细调试日志（帮助排查格式化问题）"
         }
       }
     }

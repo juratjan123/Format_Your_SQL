@@ -4,8 +4,12 @@ import { SQLFormatter } from './formatter';
 import { FormatValidator } from './validators/format-validator';
 import { SQLDiffViewer } from './utils/diff-viewer';
 import { SQLErrorFormatter } from './utils/error-formatter';
+import { Logger } from './utils/logger';
 
 export function activate(context: vscode.ExtensionContext) {
+	// 初始化日志工具
+	const logger = Logger.getInstance();
+	
 	// 定义函数获取最新配置，以便稍后可以重用
 	function getFormatConfig() {
 		const config = vscode.workspace.getConfiguration('formatYourSQL');
@@ -15,12 +19,19 @@ export function activate(context: vscode.ExtensionContext) {
 			indentSize: config.get<number>('indentSize', 4),
 			showDetailedErrors: config.get<boolean>('errors.showDetails', true),
 			highlightErrors: config.get<boolean>('errors.highlightErrors', true),
-			highlightDuration: config.get<number>('errors.highlightDuration', 5000)
+			highlightDuration: config.get<number>('errors.highlightDuration', 5000),
+			debugMode: config.get<boolean>('debug.enabled', false)
 		};
 	}
 	
 	// 获取初始配置
 	let formatConfig = getFormatConfig();
+	
+	// 设置日志工具的调试模式
+	logger.setDebugMode(formatConfig.debugMode);
+	logger.info('Format Your SQL 扩展已激活', {
+		version: vscode.extensions.getExtension('JulyTea.format-your-sql')?.packageJSON.version || '未知'
+	});
 
 	// 创建格式化器和验证器
 	const formatter = new SQLFormatter({ indentSize: formatConfig.indentSize });
@@ -34,6 +45,10 @@ export function activate(context: vscode.ExtensionContext) {
 			if (e.affectsConfiguration('formatYourSQL')) {
 				// 更新配置对象
 				formatConfig = getFormatConfig();
+				
+				// 更新日志级别
+				logger.setDebugMode(formatConfig.debugMode);
+				logger.info('配置已更新', formatConfig);
 				
 				// 更新格式化器配置
 				formatter.setValidationThreshold(formatConfig.validationThreshold);
@@ -63,6 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		const original = editor.document.getText(selection);
+		logger.info('格式化选中文本', { charCount: original.length });
 
 		try {
 			const formatted = formatter.format(original);
@@ -117,6 +133,11 @@ export function activate(context: vscode.ExtensionContext) {
 				editor.document.lineAt(editor.document.lineCount - 1).range.end
 			)
 			: selection;
+			
+		logger.info('格式化SQL', { 
+			isFullDocument: selection.isEmpty,
+			charCount: original.length 
+		});
 
 		try {
 			const formatted = formatter.format(original);
@@ -148,6 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// 注册文档格式化提供程序
 	let formattingProvider = vscode.languages.registerDocumentFormattingEditProvider('sql', {
 		provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.TextEdit[] {
+			logger.info('通过格式化提供程序格式化文档', { uri: document.uri.toString() });
 			try {
 				const original = document.getText();
 				const formatted = formatter.format(original);
@@ -184,6 +206,12 @@ export function activate(context: vscode.ExtensionContext) {
 				return [];
 			}
 		}
+	});
+	
+	// 注册显示日志命令
+	let showLogsCommand = vscode.commands.registerCommand('format-your-sql.showLogs', () => {
+		logger.info('手动打开日志面板');
+		logger.show();
 	});
 
 	// 显示格式化警告通知
@@ -229,7 +257,6 @@ export function activate(context: vscode.ExtensionContext) {
 		// 设置自动关闭通知的计时器（5秒后）
 		const autoCloseTimeout = setTimeout(() => {
 			// 通过使用then但不处理结果的方式触发通知关闭
-			// 这是因为VSCode API没有直接关闭通知的方法
 			notification.then(() => {});
 		}, 5000);
 		
@@ -243,76 +270,20 @@ export function activate(context: vscode.ExtensionContext) {
 				const timestamp = new Date().toLocaleTimeString();
 				const title = `SQL格式化差异对比 (${warningType === '丢失' ? '可能删除了内容' : '可能添加了内容'} - ${timestamp})`;
 				
-				// 添加更详细的说明注释 - 使用更清晰的格式
-				let originalWithComment = 
-`/*
-----------------------------------------------------------------------
-                         【原始SQL代码】
-----------------------------------------------------------------------
-${warningType === '丢失' ? '⚠️ 警告：格式化后可能丢失了以下内容' : '📝 注意：格式化后可能添加了新内容'}
-----------------------------------------------------------------------
-`;
-
-				if (validationResult.diffDetails && validationResult.diffDetails.length > 0) {
-					// 如果有详细的差异信息，以更美观的格式提供
-					originalWithComment += `${details}\n\n`;
-					originalWithComment += `● 详细变化：\n`;
-					
-					const removedItems = validationResult.diffDetails
-						.filter((d: any) => d.change === 'removed')
-						.map((d: any) => `  - 移除: ${d.type} "${d.value}"`);
-						
-					const addedItems = validationResult.diffDetails
-						.filter((d: any) => d.change === 'added')
-						.map((d: any) => `  - 添加: ${d.type} "${d.value}"`);
-					
-					if (removedItems.length > 0) {
-						originalWithComment += `\n【移除的内容】\n` + 
-							removedItems.slice(0, 5).join('\n') + 
-							(removedItems.length > 5 ? `\n  ... 等${removedItems.length - 5}项` : '') + '\n';
-					}
-					
-					if (addedItems.length > 0) {
-						originalWithComment += `\n【添加的内容】\n` + 
-							addedItems.slice(0, 5).join('\n') + 
-							(addedItems.length > 5 ? `\n  ... 等${addedItems.length - 5}项` : '') + '\n';
-					}
-				} else {
-					originalWithComment += `无详细差异信息，但可能存在格式变化。\n`;
-				}
+				// 使用差异查看器显示详细信息
+				SQLDiffViewer.showDiff(originalSql, formattedSql, title);
 				
-				originalWithComment += `\n请仔细比对两侧代码，确认所有变化都是安全的。
-注意：系统已自动忽略关键词和标识符的大小写变化（如 count 与 COUNT）。
-----------------------------------------------------------------------
-*/\n\n${originalSql}`;
-				
-				// 格式化后的代码注释 - 使用匹配的格式
-				const formattedWithComment = 
-`/*
-----------------------------------------------------------------------
-                       【格式化后SQL代码】
-----------------------------------------------------------------------
-${warningType === '丢失' ? '⚠️ 警告：可能丢失了原始代码中的部分内容' : '📝 注意：可能添加了原始代码中不存在的内容'}
-----------------------------------------------------------------------
-
-请仔细比对左侧原始代码，确认所有变化都符合预期。
-如果发现重要内容丢失，请使用原始代码。
-注意：系统已自动忽略关键词和标识符的大小写变化（如 count 与 COUNT）。
-
-----------------------------------------------------------------------
-*/\n\n${formattedSql}`;
-				
-				// 显示差异对比
-				SQLDiffViewer.showDiff(
-					originalWithComment, 
-					formattedWithComment, 
-					title
-				);
+				// 记录事件
+				logger.info('用户查看格式化差异', { warningType });
 			}
 		});
 	}
 
-	context.subscriptions.push(formatSelectionCommand, formatCommand, formattingProvider);
+	// 将命令添加到订阅中
+	context.subscriptions.push(formatSelectionCommand);
+	context.subscriptions.push(formatCommand);
+	context.subscriptions.push(formattingProvider);
+	context.subscriptions.push(showLogsCommand);
 }
 
 // This method is called when your extension is deactivated

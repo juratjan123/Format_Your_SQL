@@ -54,4 +54,12 @@ export class ExpressionStateManager {
             currentState.isComplete = true;
         }
     }
+    
+    /**
+     * 获取当前状态栈的副本
+     * @returns 当前所有状态的数组
+     */
+    getStates(): ExpressionState[] {
+        return [...this.stateStack];
+    }
 } 

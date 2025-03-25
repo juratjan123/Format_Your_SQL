@@ -40,6 +40,10 @@ import { IntervalHandler } from './handlers/interval-handler';
 import { PrecedenceFactory } from './factories/precedence-factory';
 import { FormatValidator, ValidationResult } from './validators/format-validator';
 import { WindowFunctionHandler } from './handlers/window-function-handler';
+import { Logger } from './utils/logger';
+
+// 格式化超时时间（毫秒）
+const FORMAT_TIMEOUT_MS = 10000; // 10秒超时
 
 export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter {
     private parser: Parser;
@@ -65,12 +69,16 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
     private precedenceFactory: PrecedenceFactory;
     private formatValidator: FormatValidator;
     private lastValidationResult: ValidationResult | null = null;
+    private logger: Logger;
+    private formatInProgress: boolean = false;
+    private formatTimeout: NodeJS.Timeout | null = null;
 
     constructor(options: Partial<FormatOptions> = {}) {
         this.options = {
             indentSize: options.indentSize || 4
         };
         
+        this.logger = Logger.getInstance();
         this.formattingContext = FormattingContext.getInstance();
         // @ts-ignore
         this.parser = new Parser({ database: 'hive' });
@@ -335,57 +343,62 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
     }
 
     /**
-     * 格式化SQL查询
-     * @param sql 原始SQL查询
-     * @returns 格式化后的SQL查询
+     * 检查SQL是否包含已知会导致解析器问题的模式
+     * @param sql SQL字符串
+     * @returns 是否包含问题模式
      */
-    public format(sql: string): string {
-        try {
-            // 保存原始SQL用于验证
-            const originalSQL = sql;
+    private containsProblematicPatterns(sql: string): boolean {
+        // 转换为大写进行不区分大小写的检查
+        const upperSql = sql.toUpperCase();
+        
+        // 检查组合模式: NOT FIND_IN_SET() > 0 
+        // 这种组合已知会导致node-sql-parser卡死
+        const findInSetNotPattern = /NOT\s+FIND_IN_SET\s*\([^)]+\)\s*>\s*0/i;
+        
+        // 检查CASE语句中有过多的AND条件
+        // 首先检查是否有CASE语句
+        if (upperSql.includes('CASE') && upperSql.includes('END')) {
+            // 计算CASE语句中AND的数量
+            const caseContent = sql.substring(
+                upperSql.indexOf('CASE'),
+                upperSql.lastIndexOf('END') + 3
+            );
             
-            // 1. 预处理
-            const preprocessedSQL = this.preProcessor.preProcess(sql);
+            // 计算AND出现的次数
+            const andCount = (caseContent.toUpperCase().match(/\bAND\b/g) || []).length;
             
-            // 2. 解析为 AST
-            const ast = this.parser.astify(preprocessedSQL);
-            
-            // 3. 使用访问者模式格式化
-            const visitor = new FormatterVisitor(this);
-            const walker = new SQLASTWalker(visitor);
-            
-            if (Array.isArray(ast)) {
-                ast.forEach(stmt => walker.walk(stmt));
-            } else {
-                walker.walk(ast);
+            // 如果AND超过10个，可能会导致解析器问题
+            if (andCount > 10) {
+                this.logger.warn('检测到CASE语句中有大量AND条件', { andCount });
+                return true;
             }
-            
-            let result = visitor.getResult();
-            
-            // 4. 后处理 - 恢复原始的map访问语法
-            result = this.preProcessor.postProcess(result);
-            
-            // 检查是否有未完成的状态
-            if (this.stateManager.hasIncompleteStates()) {
-                console.warn('Warning: Some expressions may be incomplete');
-            }
-            
-            // 5. 验证格式化结果
-            this.lastValidationResult = this.formatValidator.validate(originalSQL, result);
-            
-            // 清理上下文和状态
-            this.formattingContext.clear();
-            this.indentContextStack.clear();
-            this.stateManager.clear();
-            
-            return result;
-        } catch (error: any) {
-            // 确保在发生错误时也清理上下文和状态
-            this.formattingContext.clear();
-            this.indentContextStack.clear();
-            this.stateManager.clear();
-            throw new Error(`格式化错误: ${error.message}`);
         }
+        
+        // 检查是否匹配 NOT FIND_IN_SET 模式
+        if (findInSetNotPattern.test(sql)) {
+            this.logger.warn('检测到NOT FIND_IN_SET > 0模式', { 
+                matches: sql.match(findInSetNotPattern)?.length || 0 
+            });
+            return true;
+        }
+        
+        // 如果SQL长度超过3000字符且包含复杂函数调用，也可能导致问题
+        if (sql.length > 3000 && upperSql.includes('FIND_IN_SET')) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 清理格式化器的状态和上下文
+     * 在格式化完成或出错时调用
+     */
+    private cleanup(): void {
+        this.logger.debug('清理格式化器状态');
+        this.formattingContext.clear();
+        this.indentContextStack.clear();
+        this.stateManager.clear();
     }
 
     /**
@@ -424,5 +437,178 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         const left = this.formatExpression(expr.left);
         const right = this.formatExpression(expr.right);
         return `${left} ${expr.operator} ${right}`;
+    }
+
+    /**
+     * 格式化SQL查询
+     * @param sql 原始SQL查询
+     * @returns 格式化后的SQL查询
+     */
+    public format(sql: string): string {
+        // 检查是否已经有格式化进行中，防止重入
+        if (this.formatInProgress) {
+            this.logger.warn('检测到重复格式化调用，上一次格式化尚未完成');
+            return sql;
+        }
+
+        this.formatInProgress = true;
+        this.logger.info('开始格式化SQL', { length: sql.length });
+        const overallTimer = this.logger.startTimer('格式化完成');
+        
+        // 捕获特殊SQL模式，这些模式已知会导致解析器卡死
+        if (this.containsProblematicPatterns(sql)) {
+            this.logger.warn('检测到可能导致解析器卡死的SQL模式', { 
+                patterns: ['NOT FIND_IN_SET', '复杂CASE语句'] 
+            });
+            
+            // 直接抛出错误，不尝试简化格式化
+            this.formatInProgress = false;
+            overallTimer();
+            throw new Error('格式化错误: 检测到可能导致解析器卡死的SQL模式，如FIND_IN_SET与NOT组合或过于复杂的CASE语句。请简化SQL后重试。');
+        }
+        
+        try {
+            // 设置超时保护
+            let hasTimedOut = false;
+            this.formatTimeout = setTimeout(() => {
+                hasTimedOut = true;
+                this.logger.error('格式化超时', { timeoutMs: FORMAT_TIMEOUT_MS });
+                // 清理资源
+                this.cleanup();
+                // 通过异常中断处理
+                throw new Error(`格式化超时：操作耗时超过${FORMAT_TIMEOUT_MS / 1000}秒，可能存在无限循环或解析错误`);
+            }, FORMAT_TIMEOUT_MS);
+            
+            // 保存原始SQL用于验证
+            const originalSQL = sql;
+            this.logger.logState('初始SQL', { length: sql.length, firstChars: sql.substring(0, 50) });
+            
+            // 1. 预处理
+            this.logger.debug('开始预处理');
+            const preProcessTimer = this.logger.startTimer('预处理');
+            const preprocessedSQL = this.preProcessor.preProcess(sql);
+            preProcessTimer();
+            this.logger.logState('预处理完成', { length: preprocessedSQL.length });
+            
+            // 解析前确认准备状态
+            this.logger.info('准备解析SQL为AST', { 
+                sqlLength: preprocessedSQL.length,
+                containsCase: preprocessedSQL.toUpperCase().includes('CASE'),
+                containsFind: preprocessedSQL.toUpperCase().includes('FIND_IN_SET')
+            });
+            
+            // 2. 解析为 AST - 使用短超时保护这个关键阶段
+            this.logger.debug('开始解析SQL为AST');
+            const parseTimer = this.logger.startTimer('AST解析');
+            
+            // 为解析阶段单独设置超时保护
+            const parseTimeout = setTimeout(() => {
+                this.logger.error('AST解析阶段超时', { timeoutMs: 5000 });
+                if (this.formatTimeout) {
+                    clearTimeout(this.formatTimeout); // 清除全局超时
+                    this.formatTimeout = null;
+                }
+                this.cleanup();
+                
+                // 直接抛出错误，不尝试简化格式化
+                this.formatInProgress = false;
+                throw new Error('格式化错误: AST解析阶段超时，可能是复杂SQL导致解析器陷入问题。请简化SQL后重试。');
+            }, 5000); // 5秒解析超时，比全局超时更短
+
+            let ast;
+            try {
+                ast = this.parser.astify(preprocessedSQL);
+                clearTimeout(parseTimeout); // 正常解析完成，清除超时
+            } catch (parseError: any) {
+                clearTimeout(parseTimeout);
+                if (this.formatTimeout) {
+                    clearTimeout(this.formatTimeout);
+                    this.formatTimeout = null;
+                }
+                this.logger.error('AST解析失败', parseError);
+                
+                // 直接抛出错误，不尝试简化格式化
+                this.cleanup();
+                this.formatInProgress = false;
+                overallTimer();
+                throw new Error(`格式化错误: SQL解析失败: ${parseError.message}`);
+            }
+            
+            parseTimer();
+            this.logger.logState('AST解析完成', { 
+                isArray: Array.isArray(ast),
+                statements: Array.isArray(ast) ? ast.length : 1
+            });
+            
+            // 3. 使用访问者模式格式化
+            this.logger.debug('开始使用访问者模式格式化');
+            const formatTimer = this.logger.startTimer('访问者格式化');
+            const visitor = new FormatterVisitor(this);
+            const walker = new SQLASTWalker(visitor);
+            
+            if (Array.isArray(ast)) {
+                this.logger.debug(`处理${ast.length}条SQL语句`);
+                ast.forEach((stmt, index) => {
+                    this.logger.logState(`处理语句 #${index + 1}`, { type: stmt.type });
+                    walker.walk(stmt);
+                });
+            } else {
+                this.logger.debug('处理单条SQL语句');
+                this.logger.logState('语句信息', { type: ast.type });
+                walker.walk(ast);
+            }
+            
+            let result = visitor.getResult();
+            formatTimer();
+            this.logger.logState('格式化完成', { resultLength: result.length });
+            
+            // 4. 后处理 - 恢复原始的map访问语法
+            this.logger.debug('开始后处理');
+            const postProcessTimer = this.logger.startTimer('后处理');
+            result = this.preProcessor.postProcess(result);
+            postProcessTimer();
+            this.logger.logState('后处理完成', { finalLength: result.length });
+            
+            // 检查是否有未完成的状态
+            if (this.stateManager.hasIncompleteStates()) {
+                this.logger.warn('检测到未完成的状态', this.stateManager.getStates());
+            }
+            
+            // 5. 验证格式化结果
+            this.logger.debug('开始验证格式化结果');
+            const validateTimer = this.logger.startTimer('结果验证');
+            this.lastValidationResult = this.formatValidator.validate(originalSQL, result);
+            validateTimer();
+            this.logger.logState('验证结果', this.lastValidationResult);
+            
+            // 清理超时计时器
+            if (this.formatTimeout) {
+                clearTimeout(this.formatTimeout);
+                this.formatTimeout = null;
+            }
+            
+            // 清理上下文和状态
+            this.cleanup();
+            
+            overallTimer();
+            this.formatInProgress = false;
+            return result;
+        } catch (error: any) {
+            // 确保在发生错误时也清理计时器
+            if (this.formatTimeout) {
+                clearTimeout(this.formatTimeout);
+                this.formatTimeout = null;
+            }
+            
+            // 记录详细错误信息
+            this.logger.error('格式化过程出错', error);
+            
+            // 确保在发生错误时也清理上下文和状态
+            this.cleanup();
+            
+            overallTimer();
+            this.formatInProgress = false;
+            throw new Error(`格式化错误: ${error.message}`);
+        }
     }
 }
