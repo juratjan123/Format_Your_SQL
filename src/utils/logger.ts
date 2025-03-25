@@ -88,7 +88,7 @@ export class Logger {
      * @param data 状态数据
      */
     public logState(phase: string, data: any): void {
-        if (!this.debugMode) return;
+        if (!this.debugMode) {return;}
         
         try {
             const timestamp = new Date().toISOString();
@@ -105,7 +105,7 @@ export class Logger {
      * @returns 用于结束计时并记录经过时间的函数
      */
     public startTimer(label: string): () => void {
-        if (!this.debugMode) return () => {};
+        if (!this.debugMode) {return () => {};}
         
         const start = performance.now();
         return () => {
@@ -128,7 +128,7 @@ export class Logger {
      * @param data 附加数据
      */
     private log(level: LogLevel, message: string, data?: any): void {
-        if (level < this.minLevel) return;
+        if (level < this.minLevel) {return;}
         
         try {
             const timestamp = new Date().toISOString();

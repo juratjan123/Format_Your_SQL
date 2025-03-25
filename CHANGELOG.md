@@ -6,6 +6,10 @@ This document records all significant updates to the Format-Your-SQL extension.
 This file is organized based on recommendations from [Keep a Changelog](http://keepachangelog.com/).
 参考 [Keep a Changelog](http://keepachangelog.com/) 的建议来组织此文件。
 
+## [0.1.7] - 2025-03-25
+### Bug Fixes / 修复
+- 修复 LIMIT 语句的展示Bug / Fixed LIMIT Expression Bugs
+
 ## [0.1.6] - 2025-03-25
 ### Improvements / 改进
 - 添加 CAST 表达式处理器 / Added CAST expression handler

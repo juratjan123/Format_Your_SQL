@@ -7,6 +7,20 @@ import { BaseHandler } from './base-handler';
  * 处理SQL中的类型转换表达式，如 CAST(expr AS type)
  */
 export class CastHandler extends BaseHandler {
+    // 数据类型映射表，用于标准化类型名称
+    private readonly typeAliases: Record<string, string> = {
+        'string': 'VARCHAR',
+        'int': 'INTEGER',
+        'integer': 'INTEGER',
+        'double': 'DOUBLE',
+        'float': 'FLOAT',
+        'boolean': 'BOOLEAN',
+        'bool': 'BOOLEAN',
+        'long': 'BIGINT',
+        'date': 'DATE',
+        'timestamp': 'TIMESTAMP'
+    };
+
     canHandle(expr: any): boolean {
         return expr?.type === 'cast';
     }
@@ -23,8 +37,14 @@ export class CastHandler extends BaseHandler {
                 isInFunction: true // 使用函数上下文以保持紧凑格式
             });
             
-            // 获取目标数据类型
-            const targetType = expr.target[0].dataType;
+            // 获取目标数据类型并标准化
+            let targetType = expr.target[0].dataType;
+            
+            // 如果存在类型别名，替换为标准类型
+            const lowerType = targetType.toLowerCase();
+            if (this.typeAliases[lowerType]) {
+                targetType = this.typeAliases[lowerType];
+            }
             
             // 构建 CAST 函数表达式
             return `CAST(${sourceExpr} AS ${targetType})`;

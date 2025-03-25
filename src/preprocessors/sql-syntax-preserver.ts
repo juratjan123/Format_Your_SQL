@@ -24,6 +24,9 @@ export class SQLSyntaxPreserver {
     // 用于检测字符串字面量和它们的别名
     private readonly STRING_LITERAL_ALIAS = /(['"].*?['"])\s+([a-zA-Z0-9_]+)(?!\s*(?:FROM|WHERE|GROUP|ORDER|HAVING|LIMIT|JOIN|ON|AND|OR|UNION|INTERSECT|EXCEPT))/gi;
     
+    // 添加特定的CAST函数模式
+    private readonly CAST_PATTERN = /\bCAST\s*\(\s*([^()]+)\s+AS\s+([^()]+)\s*\)/gi;
+    
     /**
      * 重置所有状态
      */
@@ -38,8 +41,12 @@ export class SQLSyntaxPreserver {
      */
     analyze(sql: string): void {
         this.reset();
-        this.captureJoinTypes(sql);
-        this.captureAliasFormats(sql);
+        
+        // 先处理CAST表达式，防止AS关键字被错误识别
+        const processedSql = this.processCastExpressions(sql);
+        
+        this.captureJoinTypes(processedSql);
+        this.captureAliasFormats(processedSql);
     }
     
     /**
@@ -401,6 +408,11 @@ export class SQLSyntaxPreserver {
                     continue; // 处理完窗口函数后继续下一个别名
                 }
                 
+                // 跳过处理CAST函数
+                if (info.column.toUpperCase().startsWith('CAST(')) {
+                    continue;
+                }
+                
                 if (!info.hasAs) {
                     // 如果原始SQL不使用AS关键字，移除它
                     // 使用分组捕获来确保正确替换
@@ -458,9 +470,12 @@ export class SQLSyntaxPreserver {
                     }
                 }
             } catch (error) {
-                console.error(`恢复别名语法出错: ${error}, 签名: ${signature}`);
+                console.error(`恢复别名语法出错: SyntaxError: ${error}, 签名: ${signature}`);
             }
         }
+        
+        // 最后恢复所有CAST表达式中的AS关键字
+        result = this.restoreCastExpressions(result);
         
         return result;
     }
@@ -554,5 +569,21 @@ export class SQLSyntaxPreserver {
         }
         
         return result;
+    }
+    
+    // 添加CAST表达式处理方法
+    private processCastExpressions(sql: string): string {
+        // 临时替换所有CAST表达式中的AS关键字，防止它被识别为列别名
+        return sql.replace(this.CAST_PATTERN, (match, expr, type) => {
+            // 使用特殊标记替换CAST中的AS
+            return `CAST(${expr} __CAST_AS__ ${type})`;
+        });
+    }
+    
+    // 恢复CAST表达式中的AS关键字
+    private restoreCastExpressions(sql: string): string {
+        // 将临时标记替换回AS关键字
+        return sql.replace(/\bCAST\s*\(\s*([^()]+)\s+__CAST_AS__\s+([^()]+)\s*\)/gi, 
+            'CAST($1 AS $2)');
     }
 } 

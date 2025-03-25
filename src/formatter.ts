@@ -41,10 +41,15 @@ import { PrecedenceFactory } from './factories/precedence-factory';
 import { FormatValidator, ValidationResult } from './validators/format-validator';
 import { WindowFunctionHandler } from './handlers/window-function-handler';
 import { CastHandler } from './handlers/cast-handler';
-import { Logger } from './utils/logger';
+import { ILogger, LoggerFactory } from './utils/logger-interface';
 
 // 格式化超时时间（毫秒）
 const FORMAT_TIMEOUT_MS = 10000; // 10秒超时
+
+// 扩展格式化选项，增加enableLogging选项
+export interface ExtendedFormatOptions extends FormatOptions {
+    enableLogging?: boolean;
+}
 
 export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter {
     private parser: Parser;
@@ -70,16 +75,18 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
     private precedenceFactory: PrecedenceFactory;
     private formatValidator: FormatValidator;
     private lastValidationResult: ValidationResult | null = null;
-    private logger: Logger;
+    private logger: ILogger;
     private formatInProgress: boolean = false;
     private formatTimeout: NodeJS.Timeout | null = null;
 
-    constructor(options: Partial<FormatOptions> = {}) {
+    constructor(options: Partial<ExtendedFormatOptions> = {}) {
         this.options = {
             indentSize: options.indentSize || 4
         };
         
-        this.logger = Logger.getInstance();
+        // 使用LoggerFactory创建适当的日志实例
+        this.logger = LoggerFactory.createLogger(options.enableLogging || false);
+        
         this.formattingContext = FormattingContext.getInstance();
         // @ts-ignore
         this.parser = new Parser({ database: 'hive' });
@@ -288,8 +295,8 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         }
         
         if (ast.limit) {
-            parts.push(this.indent(level) + 'LIMIT');
-            parts.push(this.formatLimit(ast.limit, level + 1));
+            // 直接使用单行格式输出LIMIT
+            parts.push(this.indent(level) + 'LIMIT ' + this.formatLimit(ast.limit, level, true));
         }
         
         return parts.join('\n');
@@ -311,8 +318,35 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         return this.orderByHandler.handle(orderby, this, level);
     }
 
-    private formatLimit(limit: any, level: number): string {
-        return this.indent(level + 1) + limit.value;
+    private formatLimit(limit: any, level: number, inlineFomat: boolean = false): string {
+        if (!limit) {return '';}
+        
+        // 提取限制值
+        let limitValue = '0'; // 默认值
+        
+        // 处理limit.value是数组的情况
+        if (Array.isArray(limit.value) && limit.value.length > 0) {
+            const limitItem = limit.value[0];
+            // 检查并提取实际的限制值
+            if (typeof limitItem === 'object' && limitItem.type === 'number' && 'value' in limitItem) {
+                limitValue = limitItem.value.toString();
+            } else if (typeof limitItem === 'number') {
+                limitValue = limitItem.toString();
+            } else if (typeof limitItem === 'string') {
+                limitValue = limitItem;
+            }
+        }
+        // 处理limit.value是单个值的情况
+        else if (limit.value !== undefined && limit.value !== null) {
+            if (typeof limit.value === 'object' && 'value' in limit.value) {
+                limitValue = limit.value.value.toString();
+            } else {
+                limitValue = limit.value.toString();
+            }
+        }
+        
+        // 根据格式化模式返回结果
+        return inlineFomat ? limitValue : this.indent(level + 1) + limitValue;
     }
 
     private formatGroupBy(groupby: any, level: number): string {
