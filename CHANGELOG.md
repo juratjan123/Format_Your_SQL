@@ -6,13 +6,16 @@ This document records all significant updates to the Format-Your-SQL extension.
 This file is organized based on recommendations from [Keep a Changelog](http://keepachangelog.com/).
 参考 [Keep a Changelog](http://keepachangelog.com/) 的建议来组织此文件。
 
+## [0.1.5] - 2024-03-25
+### Improvements / 改进
+- 改进“查看差异”界面 / Improved 'View Diff' interface.
+
 ## [0.1.4] - 2024-03-25
 ### Improvements / 改进
 - 改进一些可能导致程序卡死的场景 / Optimized scenarios that could potentially cause the program to freeze
 
 ## [0.1.3] - 2024-03-25
 ### Improvements / 改进
-- 改进“查看差异”界面 / Improved 'View Diff' interface.
 - 去除自动添加 inner、as 等关键字的功能，并尽量保持代码前后一致性 / Remove the feature of automatically adding keywords such as inner, as, etc., to maintain consistency throughout the code
 
 ## [0.1.2] - 2024-03-24

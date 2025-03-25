@@ -2,7 +2,7 @@
   "name": "format-your-sql",
   "displayName": "Format-Your-SQL",
   "description": "A lightweight SQL formatter extension",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "JulyTea",
   "engines": {
     "vscode": "^1.75.0"

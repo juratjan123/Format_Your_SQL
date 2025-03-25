@@ -270,11 +270,44 @@ export function activate(context: vscode.ExtensionContext) {
 				const timestamp = new Date().toLocaleTimeString();
 				const title = `SQL格式化差异对比 (${warningType === '丢失' ? '可能删除了内容' : '可能添加了内容'} - ${timestamp})`;
 				
-				// 使用差异查看器显示详细信息
-				SQLDiffViewer.showDiff(originalSql, formattedSql, title);
+				// 准备差异详情
+				const diffType = validationResult.warningType === 'code_loss' ? 'loss' : 'addition';
+				
+				// 从validationResult中提取差异详情
+				let diffDetails: string[] = [];
+				if (validationResult.diffDetails && validationResult.diffDetails.length > 0) {
+					// 按照变化类型(added/removed)筛选并格式化详情
+					const relevantDiffs = validationResult.diffDetails.filter((diff: any) => {
+						return diffType === 'loss' ? diff.change === 'removed' : diff.change === 'added';
+					});
+					
+					// 格式化为简洁易读的字符串
+					diffDetails = relevantDiffs.map((diff: any) => {
+						const typeLabel = diff.type === 'keyword' ? '关键字' : 
+							diff.type === 'identifier' ? '标识符' : 
+							diff.type === 'operator' ? '操作符' : 
+							diff.type === 'literal' ? '常量值' : diff.type;
+						
+						return `${typeLabel}: "${diff.value}"`;
+					});
+				}
+				
+				// 使用差异查看器显示详细信息，传入差异类型和详情
+				SQLDiffViewer.showDiff(
+					originalSql, 
+					formattedSql, 
+					title,
+					{ 
+						type: diffType, 
+						details: diffDetails
+					}
+				);
 				
 				// 记录事件
-				logger.info('用户查看格式化差异', { warningType });
+				logger.info('用户查看格式化差异', { 
+					warningType,
+					detailsCount: diffDetails.length
+				});
 			}
 		});
 	}
