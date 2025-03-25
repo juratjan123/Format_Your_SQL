@@ -6,6 +6,10 @@ This document records all significant updates to the Format-Your-SQL extension.
 This file is organized based on recommendations from [Keep a Changelog](http://keepachangelog.com/).
 参考 [Keep a Changelog](http://keepachangelog.com/) 的建议来组织此文件。
 
+## [0.1.6] - 2025-03-25
+### Improvements / 改进
+- 添加 CAST 表达式处理器 / Added CAST expression handler
+
 ## [0.1.5] - 2025-03-25
 ### Improvements / 改进
 - 改进“查看差异”界面 / Improved 'View Diff' interface.
