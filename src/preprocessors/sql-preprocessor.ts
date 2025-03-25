@@ -3,6 +3,7 @@
  * 用于处理SQL中的关键字别名问题和Hive特有语法
  */
 import { HivePreProcessor } from './hive-preprocessor';
+import { SQLSyntaxPreserver } from './sql-syntax-preserver';
 
 export class SQLPreProcessor {
     private readonly SQL_KEYWORDS = new Set([
@@ -30,13 +31,20 @@ export class SQLPreProcessor {
     // Hive SQL预处理器
     private hivePreProcessor: HivePreProcessor;
     
+    // SQL语法保留器
+    private syntaxPreserver: SQLSyntaxPreserver;
+    
     constructor() {
         this.hivePreProcessor = new HivePreProcessor();
+        this.syntaxPreserver = new SQLSyntaxPreserver();
     }
     
     preProcess(sql: string): string {
         // 清空之前的替换映射
         this.mapAccessReplacements.clear();
+        
+        // 0. 使用语法保留器分析原始SQL
+        this.syntaxPreserver.analyze(sql);
         
         // 1. 先将SQL压缩成一行，去除多余空格
         let compressedSql = sql.replace(/\s+/g, ' ').trim();
@@ -88,6 +96,12 @@ export class SQLPreProcessor {
         
         // 2. 然后使用Hive预处理器的后处理方法
         processed = this.hivePreProcessor.postProcess(processed);
+        
+        // 3. 恢复原始的JOIN语法（如将INNER JOIN恢复为JOIN）
+        processed = this.syntaxPreserver.restoreJoinSyntax(processed);
+        
+        // 4. 恢复原始的别名语法（如移除不必要的AS）
+        processed = this.syntaxPreserver.restoreAliasFormat(processed);
         
         return processed;
     }

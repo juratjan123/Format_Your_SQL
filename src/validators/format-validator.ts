@@ -22,13 +22,11 @@ export class FormatValidator {
   // 可接受的最小变化阈值，低于这个阈值将被视为无变化
   private static ACCEPTABLE_CHANGE_THRESHOLD = 0.01; // 1%变化阈值
   
-  // 不应触发报警的关键词列表
-  private static readonly IGNORED_KEYWORDS = [
-    'AS', 'INNER', 'OUTER', 'LEFT', 'RIGHT', 'FULL', 'JOIN', 'ON'
-  ];
-  
   // 比较时是否忽略大小写
   private static readonly CASE_INSENSITIVE_TYPES = ['keyword', 'identifier'];
+
+  // 可配置的变化阈值
+  public significantChangeThreshold: number = FormatValidator.SIGNIFICANT_LENGTH_CHANGE_THRESHOLD;
 
   /**
    * 验证格式化前后的SQL代码
@@ -87,7 +85,7 @@ export class FormatValidator {
     const changePercentage = lengthDiff / originalLength;
     
     // 如果变化超过显著阈值，触发警告
-    if (changePercentage > FormatValidator.SIGNIFICANT_LENGTH_CHANGE_THRESHOLD) {
+    if (changePercentage > this.significantChangeThreshold) {
       const warningType = formattedLength < originalLength ? 'code_loss' : 'code_addition';
       return {
         isValid: false,
@@ -224,11 +222,6 @@ export class FormatValidator {
     formattedFrequency.forEach((count, normalizedValue) => {
       const originalCount = originalFrequency.get(normalizedValue) || 0;
       if (count > originalCount) {
-        // 跳过忽略的关键词
-        if (type === 'keyword' && FormatValidator.IGNORED_KEYWORDS.includes(normalizedValue)) {
-          return;
-        }
-        
         const diff = count - originalCount;
         for (let i = 0; i < diff; i++) {
           const actualValue = isCaseInsensitiveType ? lowerCaseMap.get(normalizedValue) || normalizedValue : normalizedValue;
@@ -246,11 +239,6 @@ export class FormatValidator {
     originalFrequency.forEach((count, normalizedValue) => {
       const formattedCount = formattedFrequency.get(normalizedValue) || 0;
       if (count > formattedCount) {
-        // 跳过忽略的关键词
-        if (type === 'keyword' && FormatValidator.IGNORED_KEYWORDS.includes(normalizedValue)) {
-          return;
-        }
-        
         const diff = count - formattedCount;
         for (let i = 0; i < diff; i++) {
           const actualValue = isCaseInsensitiveType ? lowerCaseMap.get(normalizedValue) || normalizedValue : normalizedValue;
@@ -395,18 +383,6 @@ export class FormatValidator {
       case 'comment': return '注释';
       case 'delimiter': return '分隔符';
       default: return '标记';
-    }
-  }
-
-  // 获取当前配置的阈值
-  public get significantChangeThreshold(): number {
-    return FormatValidator.SIGNIFICANT_LENGTH_CHANGE_THRESHOLD;
-  }
-
-  // 设置新的阈值
-  public set significantChangeThreshold(value: number) {
-    if (value >= 0 && value <= 1) {
-      FormatValidator.SIGNIFICANT_LENGTH_CHANGE_THRESHOLD = value;
     }
   }
 } 

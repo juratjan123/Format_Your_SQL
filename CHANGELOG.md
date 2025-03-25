@@ -8,6 +8,11 @@ This file is organized based on recommendations from [Keep a Changelog](http://k
 
 ## [0.1.2] - 2024-03-24
 ### Improvements / 改进
+- 改进“查看差异”界面 / Improved 'View Diff' interface.
+- 去除自动添加 inner、as 等关键字的功能，并尽量保持代码前后一致性 / Remove the feature of automatically adding keywords such as inner, as, etc., to maintain consistency throughout the code
+
+## [0.1.2] - 2024-03-24
+### Improvements / 改进
 - 修改无法打开“查看差异”界面的Bug / Modify the bug that prevents opening the 'View Diff' interface.
 
 ## [0.1.1] - 2024-03-24
