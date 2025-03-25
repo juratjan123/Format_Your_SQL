@@ -141,11 +141,15 @@ export class SQLSyntaxPreserver {
         // 定义常见函数名
         const commonFunctions = [
             'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'CONCAT', 'CONCAT_WS',
-            'COALESCE', 'IFNULL', 'CAST', 'DATE_FORMAT'
+            'COALESCE', 'IFNULL', 'CAST', 'DATE_FORMAT', 'ROW_NUMBER', 'RANK',
+            'DENSE_RANK', 'NTILE', 'LEAD', 'LAG', 'FIRST_VALUE', 'LAST_VALUE'
         ];
         
         // 对原始SQL进行标准化处理，以便更容易匹配函数
         let normalizedSql = sql.toUpperCase();
+        
+        // 首先识别和处理带有OVER子句的窗口函数
+        this.captureWindowFunctionAliases(sql);
         
         // 查找函数调用
         for (const funcName of commonFunctions) {
@@ -157,15 +161,15 @@ export class SQLSyntaxPreserver {
                     // 获取完整的函数表达式和别名
                     const startPos = funcMatch.index;
                     let endPos = sql.indexOf(' ', funcMatch.index + funcMatch[0].length);
-                    if (endPos === -1) endPos = sql.length;
+                    if (endPos === -1) {endPos = sql.length;}
                     
                     // 提取函数表达式
                     let parenCount = 0;
                     let exprEndPos = startPos;
                     
                     for (let i = startPos; i < endPos; i++) {
-                        if (sql[i] === '(') parenCount++;
-                        if (sql[i] === ')') parenCount--;
+                        if (sql[i] === '(') {parenCount++;}
+                        if (sql[i] === ')') {parenCount--;}
                         
                         if (parenCount === 0 && sql[i] === ')') {
                             exprEndPos = i + 1;
@@ -214,8 +218,8 @@ export class SQLSyntaxPreserver {
                     let exprEndPos = startPos;
                     
                     for (let i = startPos; i < sql.length; i++) {
-                        if (sql[i] === '(') parenCount++;
-                        if (sql[i] === ')') parenCount--;
+                        if (sql[i] === '(') {parenCount++;}
+                        if (sql[i] === ')') {parenCount--;}
                         
                         if (parenCount === 0 && sql[i] === ')') {
                             exprEndPos = i + 1;
@@ -239,6 +243,109 @@ export class SQLSyntaxPreserver {
                 } catch (error) {
                     console.error(`带AS的函数别名识别出错: ${error}`);
                 }
+            }
+        }
+    }
+    
+    /**
+     * 专门处理窗口函数别名
+     */
+    private captureWindowFunctionAliases(sql: string): void {
+        // 窗口函数关键字
+        const windowFunctions = ['ROW_NUMBER', 'RANK', 'DENSE_RANK', 'NTILE', 'LEAD', 'LAG', 'FIRST_VALUE', 'LAST_VALUE'];
+        
+        // 遍历所有窗口函数
+        for (const funcName of windowFunctions) {
+            // 1. 匹配不带AS的窗口函数别名，格式如: row_number() OVER (...) alias
+            // 注意：这个正则表达式需要处理嵌套括号
+            try {
+                const pattern = new RegExp(`\\b${funcName}\\s*\\([^)]*\\)\\s+OVER\\s*\\([^\\)]*\\)\\s+([a-zA-Z0-9_]+)\\b(?!\\s*AS|\\s*\\(|\\s*\\.|\\s*=)`, 'gi');
+                
+                let match;
+                while ((match = pattern.exec(sql)) !== null) {
+                    const startPos = match.index;
+                    const alias = match[1];
+                    
+                    // 使用括号平衡算法提取整个窗口函数表达式
+                    let parenCount = 0;
+                    let overClauseStarted = false;
+                    let exprEndPos = startPos;
+                    
+                    for (let i = startPos; i < sql.length; i++) {
+                        if (sql.substring(i, i + 4).toUpperCase() === 'OVER') {
+                            overClauseStarted = true;
+                        }
+                        
+                        if (sql[i] === '(') {parenCount++;}
+                        if (sql[i] === ')') {parenCount--;}
+                        
+                        // 对于窗口函数，需要处理完整的OVER子句
+                        if (overClauseStarted && parenCount === 0 && sql[i] === ')') {
+                            exprEndPos = i + 1;
+                            break;
+                        }
+                    }
+                    
+                    // 函数表达式到OVER子句结束
+                    const fullExpr = sql.substring(startPos, exprEndPos).trim();
+                    
+                    // 生成唯一的标识
+                    const signature = `${fullExpr}__ALIAS__${alias}`;
+                    
+                    // 记录为不带AS的别名
+                    if (!this.aliasFormats.has(signature)) {
+                        this.aliasFormats.set(signature, false);
+                        this.columnAliasMap.set(signature, {
+                            column: fullExpr,
+                            alias,
+                            hasAs: false
+                        });
+                    }
+                }
+                
+                // 2. 匹配带AS的窗口函数别名，格式如: row_number() OVER (...) AS alias
+                const patternWithAs = new RegExp(`\\b${funcName}\\s*\\([^)]*\\)\\s+OVER\\s*\\([^\\)]*\\)\\s+AS\\s+([a-zA-Z0-9_]+)\\b`, 'gi');
+                
+                while ((match = patternWithAs.exec(sql)) !== null) {
+                    const startPos = match.index;
+                    const alias = match[1];
+                    
+                    // 使用括号平衡算法提取整个窗口函数表达式
+                    let parenCount = 0;
+                    let overClauseStarted = false;
+                    let exprEndPos = startPos;
+                    
+                    for (let i = startPos; i < sql.length; i++) {
+                        if (sql.substring(i, i + 4).toUpperCase() === 'OVER') {
+                            overClauseStarted = true;
+                        }
+                        
+                        if (sql[i] === '(') {parenCount++;}
+                        if (sql[i] === ')') {parenCount--;}
+                        
+                        // 对于窗口函数，需要处理完整的OVER子句
+                        if (overClauseStarted && parenCount === 0 && sql[i] === ')') {
+                            exprEndPos = i + 1;
+                            break;
+                        }
+                    }
+                    
+                    // 函数表达式到OVER子句结束
+                    const fullExpr = sql.substring(startPos, exprEndPos).trim();
+                    
+                    // 生成唯一的标识
+                    const signature = `${fullExpr}__ALIAS__${alias}`;
+                    
+                    // 记录为带AS的别名
+                    this.aliasFormats.set(signature, true);
+                    this.columnAliasMap.set(signature, {
+                        column: fullExpr,
+                        alias,
+                        hasAs: true
+                    });
+                }
+            } catch (error) {
+                console.error(`窗口函数别名识别出错(${funcName}): ${error}`);
             }
         }
     }
@@ -287,6 +394,12 @@ export class SQLSyntaxPreserver {
                 // 需要处理函数表达式和复杂列名中的括号和特殊字符
                 const escapedColumn = this.escapeRegExpWithParens(info.column);
                 const escapedAlias = this.escapeRegExp(info.alias);
+                
+                // 特殊处理窗口函数
+                if (this.isWindowFunction(info.column)) {
+                    result = this.handleWindowFunctionAlias(result, info, escapedAlias);
+                    continue; // 处理完窗口函数后继续下一个别名
+                }
                 
                 if (!info.hasAs) {
                     // 如果原始SQL不使用AS关键字，移除它
@@ -346,6 +459,57 @@ export class SQLSyntaxPreserver {
                 }
             } catch (error) {
                 console.error(`恢复别名语法出错: ${error}, 签名: ${signature}`);
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 检测是否是窗口函数
+     */
+    private isWindowFunction(expr: string): boolean {
+        // 检查是否包含OVER关键字和括号
+        return /\b(?:ROW_NUMBER|RANK|DENSE_RANK|NTILE|LEAD|LAG|FIRST_VALUE|LAST_VALUE)\s*\([^)]*\)\s+OVER\s*\(/i.test(expr);
+    }
+    
+    /**
+     * 特殊处理窗口函数别名
+     */
+    private handleWindowFunctionAlias(sql: string, info: {column: string, alias: string, hasAs: boolean}, escapedAlias: string): string {
+        // 提取函数名
+        const funcNameMatch = info.column.match(/\b(ROW_NUMBER|RANK|DENSE_RANK|NTILE|LEAD|LAG|FIRST_VALUE|LAST_VALUE)\b/i);
+        if (!funcNameMatch) {return sql;}
+        
+        const funcName = funcNameMatch[1];
+        const escapedFuncName = this.escapeRegExp(funcName);
+        
+        // 在格式化后的SQL中查找该窗口函数
+        let result = sql;
+        
+        if (!info.hasAs) {
+            // 1. 匹配：funcName(...) OVER (...) AS alias
+            const windowFuncWithAsPattern = new RegExp(
+                `(${escapedFuncName}\\s*\\([^)]*\\)\\s+OVER\\s*\\([^)]*\\))\\s+AS\\s+(${escapedAlias})\\b`, 
+                'gi'
+            );
+            
+            // 移除AS
+            result = result.replace(windowFuncWithAsPattern, (match, p1, p2) => {
+                return `${p1} ${p2}`;
+            });
+        } else {
+            // 2. 匹配：funcName(...) OVER (...) alias (没有AS)
+            const windowFuncWithoutAsPattern = new RegExp(
+                `(${escapedFuncName}\\s*\\([^)]*\\)\\s+OVER\\s*\\([^)]*\\))\\s+(${escapedAlias})\\b(?!\\s*AS)`, 
+                'gi'
+            );
+            
+            // 添加AS
+            if (result.match(windowFuncWithoutAsPattern)) {
+                result = result.replace(windowFuncWithoutAsPattern, (match, p1, p2) => {
+                    return `${p1} AS ${p2}`;
+                });
             }
         }
         

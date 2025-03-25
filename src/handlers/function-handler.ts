@@ -4,7 +4,8 @@ import { ExpressionFormatter } from '../interfaces/expression-formatter';
 
 export class FunctionHandler extends BaseHandler {
     canHandle(expr: any): boolean {
-        return expr?.type === 'function';
+        // 不处理窗口函数，那些应该由WindowFunctionHandler处理
+        return expr?.type === 'function' && !this.isWindowFunction(expr);
     }
 
     handle(expr: any, formatter: ExpressionFormatter, context: ExpressionContext): string {

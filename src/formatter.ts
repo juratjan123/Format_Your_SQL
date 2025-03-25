@@ -39,6 +39,7 @@ import { ExpressionValidator } from './validators/expression-validator';
 import { IntervalHandler } from './handlers/interval-handler';
 import { PrecedenceFactory } from './factories/precedence-factory';
 import { FormatValidator, ValidationResult } from './validators/format-validator';
+import { WindowFunctionHandler } from './handlers/window-function-handler';
 
 export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter {
     private parser: Parser;
@@ -90,15 +91,16 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
         
         // 初始化处理器
         this.expressionHandlers = [
+            new WindowFunctionHandler(), // 首先处理窗口函数
             this.handlerFactory.createInClauseHandler(this.typeChecker),
             new BinaryExprHandler(),
             new AggregateFuncHandler(),
-            new BetweenHandler(),  // 使用更新后的BetweenHandler
+            new BetweenHandler(),
             new CaseWhenHandler(this.typeChecker),
             new FunctionHandler(),
             new SubqueryHandler(),
             new UnionSubqueryHandler(),
-            new IntervalHandler()  // 添加INTERVAL处理器
+            new IntervalHandler()
         ];
         
         this.joinHandler = new JoinHandler(this);
@@ -173,35 +175,7 @@ export class SQLFormatter implements SQLFormatterInterface, ExpressionFormatter 
                         this.formatExpression(arg, { ...context, isInFunction: true })
                     ).join(', ');
                     
-                    // 处理窗口函数的OVER子句
-                    if (decoratedExpr.over) {
-                        const partitionBy = decoratedExpr.over.as_window_specification?.window_specification?.partitionby;
-                        const orderBy = decoratedExpr.over.as_window_specification?.window_specification?.orderby;
-                        
-                        let overClause = ' OVER (';
-                        
-                        if (partitionBy) {
-                            const partitionExpr = partitionBy.map((p: any) => 
-                                this.formatExpression(p.expr, { ...context, isInFunction: true })
-                            ).join(', ');
-                            overClause += `PARTITION BY ${partitionExpr}`;
-                        }
-                        
-                        if (orderBy) {
-                            if (partitionBy) {
-                                overClause += ' ';
-                            }
-                            const orderExpr = orderBy.map((o: any) => {
-                                const expr = this.formatExpression(o.expr, { ...context, isInFunction: true });
-                                return `${expr} ${o.type}`;
-                            }).join(', ');
-                            overClause += `ORDER BY ${orderExpr}`;
-                        }
-                        
-                        overClause += ')';
-                        return `${funcName}(${args})${overClause}`;
-                    }
-
+                    // 移除重复的窗口函数处理，因为已经由WindowFunctionHandler处理
                     return `${funcName}(${args})`;
                 case 'column_ref':
                     return decoratedExpr.table ? 
